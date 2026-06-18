@@ -30,6 +30,8 @@ def compute_layout(initial_edges):
     pos = {}
 
     n_cols = int(np.ceil(np.sqrt(len(components))))
+    if n_cols%2:
+        n_cols-=1
     spacing = 5
     radius = 2
 
@@ -98,7 +100,7 @@ def plot_graph_snapshot(snapshot, pos, save_path, weight, t):
     plt.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close()
  
-def plot_simulation_graphs(weight_folder, sim_folder, sim_path):
+def plot_simulation_graphs(weight_folder, sim_folder, sim_path, weight_display):
     """Generate and save graph snapshots for every saved time step of one simulation."""
     snapshots = load_snapshots(sim_path)
     if not snapshots:
@@ -106,17 +108,6 @@ def plot_simulation_graphs(weight_folder, sim_folder, sim_path):
  
     earliest = snapshots[min(snapshots.keys())]
     pos = compute_layout(earliest["initial_edges"])
-    
-    # Parse weight from folder name (format: "weight_XXX" where XXX are digits)
-    weight_str = weight_folder[-3:]
-    weight_int = int(weight_str)      
-    weight_value = weight_int / 100   
-    
-    # Format weight to remove redundant trailing zeros
-    weight_display = 0
-    if weight_value != 0:
-        formatted = f"{weight_value:.10f}".rstrip('0').rstrip('.')
-        weight_display = int(formatted) if '.' not in formatted else formatted
     
     graph_output_dir = os.path.join(output_dir, weight_folder, sim_folder, "graphs")
     os.makedirs(graph_output_dir, exist_ok=True)
@@ -143,6 +134,17 @@ def main():
         weight_min_len = None
         weight_times_ref = None
         
+        # Parse weight from folder name (format: "weight_XXX" where XXX are digits)
+        weight_str = weight_folder[-3:]
+        weight_int = int(weight_str)      
+        weight_value = weight_int / 100   
+        
+        # Format weight to remove redundant trailing zeros
+        weight_display = 0
+        if weight_value != 0:
+            formatted = f"{weight_value:.10f}".rstrip('0').rstrip('.')
+            weight_display = int(formatted) if '.' not in formatted else formatted 
+            
         # Loop over simulations
         for weight_sub in sorted(os.listdir(weight_path)):
             sim = os.path.join(weight_path, weight_sub)
@@ -166,13 +168,13 @@ def main():
             if weight_min_len is None or len(values) < weight_min_len:
                 weight_min_len = len(values)
                 weight_times_ref = times  # times array corresponding to the shortest run
-            
+
             all_simulations.append(values)
             plt.figure()
             plt.plot(times, values, marker='o', linestyle='-')
             plt.xlabel("Time")
             plt.ylabel("Number of Connected Components")
-            plt.title(f"Weight: {weight_folder}")
+            plt.title(f"Reputational Flow Weight: {weight_display}")
             plt.grid(False)
             weight_output_dir = os.path.join(output_dir, weight_folder)
             os.makedirs(weight_output_dir, exist_ok=True)
@@ -181,7 +183,7 @@ def main():
             final_times = times
             plt.close()
 
-            plot_simulation_graphs(weight_folder, weight_sub, sim)
+            plot_simulation_graphs(weight_folder, weight_sub, sim, weight_display)
 
         # Truncate all simulations in this weight folder to weight_min_len
         all_simulations = [sim[:weight_min_len] for sim in all_simulations]
@@ -198,7 +200,7 @@ def main():
         plt.fill_between(weight_times, mean - std, mean + std, alpha=0.3, label="±1 std")
         plt.xlabel("Time")
         plt.ylabel("Mean Number of Connected Components")
-        plt.title(f"Weight: {weight_folder}")
+        plt.title(f"Reputational Flow Weight: {weight_display}")
         plt.legend()
         plt.grid(False)
         plt.savefig(os.path.join(output_dir, f"{weight_folder}.png"), dpi=300)
@@ -210,18 +212,14 @@ def main():
     final_results = [res[:global_min_len] for res in final_results]
     final_times = final_times[:global_min_len]
 
-
     # Plot final results
     plt.figure(figsize=(8,6))
     for i, weight in enumerate(final_results):
-        w = i * rep_weight_step
+        w = i * rep_weight_step + rep_flow_weights[0]
         plt.plot(final_times, weight, marker='o', linestyle='-', label=f"w = {w}")
     plt.xlabel("Time Steps")
     plt.ylabel("Mean number of connected components")
     plt.title("Cooperation Dynamics")
-    # remove background grid lines
-    plt.grid(False)
-    # legend with title
     plt.legend(title="Reputational Flow Weight")
     plt.savefig(os.path.join(output_dir, "Results_per_time.png"), dpi=300)
     plt.close()
@@ -233,8 +231,7 @@ def main():
     plt.xlabel("Reputational Flow Weight")
     plt.ylabel("Mean number of connected components")
     plt.title("Cooperation Dynamics")
-    plt.grid(False)
-    plt.legend()
+    plt.legend(title="Time Steps")
     plt.savefig(os.path.join(output_dir, "Results_per_weight.png"), dpi=300)
     plt.close()
 
